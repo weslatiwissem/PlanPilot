@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets
+.env
+
+# Data (tracked by DVC instead)
+/data/**
+!/data/.gitkeep
+!/data/**/*.dvc
+
+# Model artifacts
+*.pt
+*.bin
+*.ckpt
+mlruns/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

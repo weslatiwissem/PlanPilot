@@ -1,0 +1,45 @@
+# --- Orchestration ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+langgraph==0.2.28
+pydantic==2.9.2
+python-dotenv==1.0.1
+
+# --- ML / DL core ---
+torch==2.4.1
+transformers==4.44.2
+peft==0.13.0
+trl==0.10.1
+accelerate==0.34.2
+sentence-transformers==3.1.1
+outlines==0.0.46
+lightgbm==4.5.0
+scikit-learn==1.5.2
+
+# --- Data / big data ---
+polars==1.7.1
+dask[dataframe]==2024.9.0
+pandera==0.20.4
+great-expectations==0.18.19
+
+# --- RAG / vector store ---
+chromadb==0.5.5
+
+# --- Tracking / versioning ---
+mlflow==2.16.0
+dvc[gdrive]==3.55.2
+
+# --- Monitoring ---
+evidently==0.4.33
+shap==0.46.0
+
+# --- Integrations ---
+atlassian-python-api==3.41.14
+py-trello==0.19.0
+scipy==1.14.1
+
+# --- Dev / quality ---
+pytest==8.3.3
+black==24.8.0
+ruff==0.6.7
+pre-commit==3.8.0
