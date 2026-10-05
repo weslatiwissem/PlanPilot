@@ -9,8 +9,9 @@ __pycache__/
 
 # Data (tracked by DVC instead)
 /data/**
-!/data/.gitkeep
+!/data/**/
 !/data/**/*.dvc
+!/data/.gitkeep
 
 # Model artifacts
 *.pt
