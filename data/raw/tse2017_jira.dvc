@@ -1,0 +1,6 @@
+outs:
+- md5: b523e21c910bdff3f120f79e858af9a3.dir
+  size: 2707684
+  nfiles: 12
+  hash: md5
+  path: tse2017_jira
