@@ -29,6 +29,9 @@ chromadb==0.5.5
 mlflow==2.16.0
 dvc[gdrive]==3.55.2
 pathspec>=0.10.3,<0.12
+# Pinned: newer pyOpenSSL/cryptography break DVC's Google Drive auth (pydrive2)
+pyopenssl==24.2.1
+cryptography==42.0.8
 
 # --- Monitoring ---
 evidently==0.4.33
