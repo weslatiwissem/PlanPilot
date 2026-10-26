@@ -28,6 +28,7 @@ chromadb==0.5.5
 # --- Tracking / versioning ---
 mlflow==2.16.0
 dvc[gdrive]==3.55.2
+pathspec>=0.10.3,<0.12
 
 # --- Monitoring ---
 evidently==0.4.33
