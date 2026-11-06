@@ -10,3 +10,4 @@ class PlanState(TypedDict, total=False):
     risks: List[Dict[str, Any]]       # Agent 3 output  -> list[schemas.Risk]
     approved: bool                    # human approval gate
     errors: List[str]
+    team_id: str

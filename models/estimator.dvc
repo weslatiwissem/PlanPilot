@@ -1,0 +1,6 @@
+outs:
+- md5: 73d9a790546c4fee193277d95651f6be.dir
+  size: 2676928
+  nfiles: 2
+  hash: md5
+  path: estimator

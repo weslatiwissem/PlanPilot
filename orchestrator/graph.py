@@ -9,7 +9,7 @@ from orchestrator.state import PlanState
 
 
 def _after_scoping(state: PlanState) -> str:
-    return "ask" if state.get("clarifying_questions") else "plan"
+      return "ask" if state.get("clarifying_questions") or state.get("errors") else "plan"
 
 
 def build_graph():

@@ -1,0 +1,6 @@
+outs:
+- md5: 2cfa38ac834e2b7a16b29e0c56ed2502.dir
+  size: 17493107
+  nfiles: 16
+  hash: md5
+  path: storypoints
