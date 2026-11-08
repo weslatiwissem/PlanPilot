@@ -1,0 +1,8 @@
+[
+  {"name": "Alice", "skills": ["backend", "python", "api", "database", "authentication", "server"],
+   "capacity_points": 10, "current_load": 0, "trello_username": null},
+  {"name": "Bob", "skills": ["frontend", "react", "ui", "design", "mobile", "interface"],
+   "capacity_points": 10, "current_load": 0, "trello_username": null},
+  {"name": "Chloe", "skills": ["testing", "qa", "devops", "deployment", "documentation", "ci"],
+   "capacity_points": 8, "current_load": 0, "trello_username": null}
+]

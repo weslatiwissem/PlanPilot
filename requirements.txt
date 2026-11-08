@@ -2,7 +2,9 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 langgraph==0.2.28
-pydantic==2.9.2
+# FIX: was 'pydantic==2.9.2' here AND 'pydantic>=2.12.5' at the bottom -> pip could not
+# install either. One line only.
+pydantic>=2.12.5   # required by google-genai 3.x
 python-dotenv==1.0.1
 #httpx==0.27.2
 
@@ -23,6 +25,9 @@ dask[dataframe]==2024.9.0
 pandera==0.20.4
 great-expectations==0.18.19
 
+# --- LLM (Agent 1: Gemini) ---
+google-genai>=3.0.0,<4
+
 # --- RAG / vector store ---
 chromadb==0.5.5
 
@@ -42,11 +47,10 @@ shap==0.46.0
 atlassian-python-api==3.41.14
 py-trello==0.19.0
 scipy==1.14.1
+requests>=2.32,<3          # Agent 2: Trello REST calls (explicit instead of transitive)
 
 # --- Dev / quality ---
 pytest==8.3.3
 black==24.8.0
 ruff==0.6.7
 pre-commit==3.8.0
-pydantic>=2.12.5
-google-genai>=3.0.0,<4

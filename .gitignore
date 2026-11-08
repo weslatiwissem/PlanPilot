@@ -6,6 +6,7 @@ __pycache__/
 
 # Secrets
 .env
+vtest
 
 # Data (tracked by DVC instead)
 /data/**
@@ -29,3 +30,6 @@ Thumbs.db
 
 .chroma/
 .cache/
+
+# Agent 2 audit log
+agent2_ops/audit_log.jsonl

@@ -3,6 +3,8 @@
 A self-learning AI copilot that turns a project description into an approved,
 tracked Jira/Trello sprint plan.
 
+**Short on time? Read `TEAMMATE_SETUP.md` — a copy-paste checklist with every command and every secret you need.**
+
 This README is the onboarding doc. If you're a teammate setting up for the
 first time, follow **Setup (step by step)** below top to bottom. It should
 take ~20-30 minutes the first time, and ~5 minutes on any laptop after that.
@@ -32,7 +34,7 @@ Folder ownership (matches the team split in the proposal):
 ```
 planpilot/
 ├── agent1_scoping/      # Person A: M1, M2, M3, RAG, clarification dialog
-├── agent2_ops/          # Person B: M4, orchestrator glue, Jira/Trello connectors
+├── agent2_ops/          # Person B: M4 skill matcher, sprint planning, Trello connector (see agent2_ops/README.md)
 ├── agent3_risk/         # Person C: M5, M6, Airflow DAGs, monitoring
 ├── orchestrator/        # shared: LangGraph state machine + FastAPI gateway
 ├── data/                # DVC-tracked, not committed to Git directly
@@ -97,7 +99,8 @@ pip install -r requirements.txt
 
 # 4. Copy the env template and fill in your own secrets
 cp .env.example .env
-# open .env and fill in: JIRA_API_TOKEN, TRELLO_API_KEY, etc.
+# open .env and fill in: GEMINI_API_KEY, TRELLO_API_KEY, TRELLO_API_TOKEN (Agent 1 + Agent 2 need these;
+# JIRA_* is not used yet). See TEAMMATE_SETUP.md for how to get them.
 # (ask whoever set up the Jira/Trello sandbox for these — do NOT commit .env)
 
 # 5. Start the shared services (Postgres + MLflow + Chroma)
@@ -200,5 +203,35 @@ sequence model) runs fine on CPU locally.
 |---|---|
 | `docker compose up` fails with a port conflict | Something else is using port 5000 or 8000 — stop it, or change the port mapping in `docker-compose.yml` |
 | `dvc pull` asks to authenticate every time | Re-run `dvc remote modify storage gdrive_use_service_account false` then re-auth once |
+| `POST /plan` returns `clarifying_questions` and no sprint plan | Not a bug: Agent 1 wants more detail. Use `python -m agent2_ops.demo` (it asks you the questions) or add the answers under a `## Clarifications` heading and re-send |
+| `/approve` returns `agent2: Trello ... 401` | Wrong/expired `TRELLO_API_KEY` or `TRELLO_API_TOKEN`. Test: `curl "https://api.trello.com/1/members/me?key=KEY&token=TOKEN"`; restart uvicorn after editing `.env` |
+| Browser shows `{"detail":"Not Found"}` on the API address | Normal — there is no page at `/`. Open `http://localhost:8001/docs` instead |
 | `pip install -r requirements.txt` fails on `torch` | Install the CPU-only build manually first: `pip install torch --index-url https://download.pytorch.org/whl/cpu`, then re-run the requirements install |
 | Teammate's code works, yours doesn't | Check `python --version` and `pip list` match — if not, recreate your `.venv` from `requirements.txt` |
+
+* * *
+
+## 8. Running the pipeline (Agent 1 → Agent 2 → Agent 3) and Agent 2 / Trello
+
+Flow: `POST /plan` (Agent 1 scopes, Agent 2 **proposes** sprints + assignees, nothing is written) → a human reviews →
+`POST /approve` (Agent 2 writes the board / sprint lists / cards to Trello, then Agent 3 runs).
+
+```
+# terminal 1 — the API (port 8001, because Chroma in docker uses 8000)
+uvicorn orchestrator.main:app --port 8001 --reload
+
+# terminal 2 — guided demo: answers Agent 1's questions, shows the proposal, asks approval, writes Trello
+python -m agent2_ops.demo "A todo app with web UI, login and reminders"
+
+# or click through the API in the browser
+# http://localhost:8001/docs
+```
+
+Notes:
+- Docker is **not** needed to run the API: Chroma runs from the local `.chroma/` folder by default (`CHROMA_USE_SERVER=0`).
+  Docker is only for MLflow / Postgres / the Chroma server.
+- Trello credentials: see `agent2_ops/README.md` and `TEAMMATE_SETUP.md`.
+- Optional RAG index for Agent 1: `dvc pull`, then `python -m agent1_scoping.index_stories`. Without it, plans are generated without RAG.
+- Agent 2 tests (offline, no keys needed): `pytest tests/test_agent2.py`.
+- Every Trello write is logged in `agent2_ops/audit_log.jsonl` (git-ignored).
+- Agent 3 reads `state["ops_result"]` (board id, ticket list with Trello card ids, metrics). Contract: `orchestrator/schemas.py`.
