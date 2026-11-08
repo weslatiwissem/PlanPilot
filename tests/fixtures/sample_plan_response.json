@@ -1,0 +1,263 @@
+{
+  "scope": {
+    "epics": [
+      {
+        "title": "Infrastructure & Core Authentication",
+        "stories": [
+          {
+            "title": "Database Schema & FastAPI Setup",
+            "estimate_points": 3
+          },
+          {
+            "title": "Email Password Authentication API",
+            "estimate_points": 3
+          },
+          {
+            "title": "React Application Shell & Authentication UI",
+            "estimate_points": 3
+          }
+        ]
+      },
+      {
+        "title": "Task Management",
+        "stories": [
+          {
+            "title": "Task CRUD Endpoints",
+            "estimate_points": 5
+          },
+          {
+            "title": "Task List & Filter Views",
+            "estimate_points": 3
+          },
+          {
+            "title": "Task Creation & Edit Form",
+            "estimate_points": 3
+          },
+          {
+            "title": "Task Completion Toggle",
+            "estimate_points": 2
+          }
+        ]
+      },
+      {
+        "title": "In-App Notifications & Polling",
+        "stories": [
+          {
+            "title": "Reminder Detection Backend Logic",
+            "estimate_points": 5
+          },
+          {
+            "title": "Polling Notification Hook",
+            "estimate_points": 3
+          },
+          {
+            "title": "In-App Notification Center UI",
+            "estimate_points": 3
+          }
+        ]
+      },
+      {
+        "title": "Email Notifications",
+        "stories": [
+          {
+            "title": "SMTP Client Integration",
+            "estimate_points": 3
+          },
+          {
+            "title": "Scheduled Email Reminder Worker",
+            "estimate_points": 5
+          }
+        ]
+      },
+      {
+        "title": "Deployment & Single VM Hosting",
+        "stories": [
+          {
+            "title": "Containerization & Docker Setup",
+            "estimate_points": 3
+          },
+          {
+            "title": "Single Cloud VM Provisioning & Deployment",
+            "estimate_points": 3
+          }
+        ]
+      }
+    ]
+  },
+  "sprint_plan": {
+    "sprints": [
+      {
+        "number": 1,
+        "items": [
+          "Database Schema & FastAPI Setup",
+          "Email Password Authentication API",
+          "React Application Shell & Authentication UI",
+          "Task CRUD Endpoints",
+          "Task List & Filter Views",
+          "Task Creation & Edit Form",
+          "Task Completion Toggle",
+          "Reminder Detection Backend Logic"
+        ],
+        "capacity_points": 28
+      },
+      {
+        "number": 2,
+        "items": [
+          "Polling Notification Hook",
+          "In-App Notification Center UI",
+          "SMTP Client Integration",
+          "Scheduled Email Reminder Worker",
+          "Containerization & Docker Setup",
+          "Single Cloud VM Provisioning & Deployment"
+        ],
+        "capacity_points": 28
+      }
+    ]
+  },
+  "ops_result": {
+    "written": false,
+    "warnings": [],
+    "tickets": [
+      {
+        "key": "k0",
+        "title": "Database Schema & FastAPI Setup",
+        "epic": "Infrastructure & Core Authentication",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.315,
+        "needs_human": false
+      },
+      {
+        "key": "k1",
+        "title": "Email Password Authentication API",
+        "epic": "Infrastructure & Core Authentication",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.438,
+        "needs_human": false
+      },
+      {
+        "key": "k2",
+        "title": "React Application Shell & Authentication UI",
+        "epic": "Infrastructure & Core Authentication",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.406,
+        "needs_human": false
+      },
+      {
+        "key": "k3",
+        "title": "Task CRUD Endpoints",
+        "epic": "Task Management",
+        "points": 5,
+        "sprint": 1,
+        "assignee": "Chloe",
+        "confidence": 0.223,
+        "needs_human": false
+      },
+      {
+        "key": "k4",
+        "title": "Task List & Filter Views",
+        "epic": "Task Management",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.428,
+        "needs_human": false
+      },
+      {
+        "key": "k5",
+        "title": "Task Creation & Edit Form",
+        "epic": "Task Management",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.373,
+        "needs_human": false
+      },
+      {
+        "key": "k6",
+        "title": "Task Completion Toggle",
+        "epic": "Task Management",
+        "points": 2,
+        "sprint": 1,
+        "assignee": "Chloe",
+        "confidence": 0.155,
+        "needs_human": false
+      },
+      {
+        "key": "k7",
+        "title": "Reminder Detection Backend Logic",
+        "epic": "In-App Notifications & Polling",
+        "points": 5,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.211,
+        "needs_human": false
+      },
+      {
+        "key": "k8",
+        "title": "Polling Notification Hook",
+        "epic": "In-App Notifications & Polling",
+        "points": 3,
+        "sprint": 2,
+        "assignee": "Bob",
+        "confidence": 0.214,
+        "needs_human": false
+      },
+      {
+        "key": "k9",
+        "title": "In-App Notification Center UI",
+        "epic": "In-App Notifications & Polling",
+        "points": 3,
+        "sprint": 2,
+        "assignee": "Bob",
+        "confidence": 0.323,
+        "needs_human": false
+      },
+      {
+        "key": "k10",
+        "title": "SMTP Client Integration",
+        "epic": "Email Notifications",
+        "points": 3,
+        "sprint": 2,
+        "assignee": "Alice",
+        "confidence": 0.226,
+        "needs_human": false
+      },
+      {
+        "key": "k11",
+        "title": "Scheduled Email Reminder Worker",
+        "epic": "Email Notifications",
+        "points": 5,
+        "sprint": 2,
+        "assignee": null,
+        "confidence": 0.124,
+        "needs_human": true
+      },
+      {
+        "key": "k12",
+        "title": "Containerization & Docker Setup",
+        "epic": "Deployment & Single VM Hosting",
+        "points": 3,
+        "sprint": 2,
+        "assignee": "Chloe",
+        "confidence": 0.338,
+        "needs_human": false
+      },
+      {
+        "key": "k13",
+        "title": "Single Cloud VM Provisioning & Deployment",
+        "epic": "Deployment & Single VM Hosting",
+        "points": 3,
+        "sprint": 2,
+        "assignee": "Alice",
+        "confidence": 0.352,
+        "needs_human": false
+      }
+    ]
+  }
+}
