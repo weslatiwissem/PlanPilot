@@ -1,8 +1,20 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from agent3_risk.agent import assess_risk
 from agent3_risk.heuristics import assess
-from orchestrator.schemas import Epic, Risk, Scope, Sprint, SprintPlan, Story
+from orchestrator.schemas import (
+    Epic,
+    OpsResult,
+    Risk,
+    Scope,
+    Sprint,
+    SprintPlan,
+    Story,
+    Ticket,
+)
 
 
 def make_scope(**points):
@@ -77,11 +89,6 @@ def test_agent_handles_missing_plan():
 
 
 # ---------------------------------------------------------------- real Agent 1+2 output
-import json
-from pathlib import Path
-
-from orchestrator.schemas import OpsResult, Ticket
-
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_plan_response.json"
 
 

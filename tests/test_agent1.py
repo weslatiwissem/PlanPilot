@@ -29,7 +29,8 @@ def test_never_asks_again_once_answers_are_included(monkeypatch):
 
 
 def test_story_titles_are_unique_and_points_snapped(monkeypatch):
-    story = lambda: LLMStory(title="Login", description="", estimate_points=6)
+    def story():
+        return LLMStory(title="Login", description="", estimate_points=6)
     monkeypatch.setattr(
         "agent1_scoping.scope.generate_structured",
         lambda *a, **k: LLMScope(epics=[LLMEpic(title="A", stories=[story(), story()])]),
