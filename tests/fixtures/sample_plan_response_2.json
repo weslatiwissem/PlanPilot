@@ -1,0 +1,243 @@
+{
+  "scope": {
+    "epics": [
+      {
+        "title": "System Foundation & Authentication",
+        "stories": [
+          {
+            "title": "Setup Cloud Infrastructure and Database",
+            "estimate_points": 3
+          },
+          {
+            "title": "Email-Password Authentication API",
+            "estimate_points": 3
+          },
+          {
+            "title": "Web Application Shell and Auth Views",
+            "estimate_points": 3
+          }
+        ]
+      },
+      {
+        "title": "Personal Task Management",
+        "stories": [
+          {
+            "title": "Task Creation and Listing Endpoints",
+            "estimate_points": 2
+          },
+          {
+            "title": "Task Details and Management Backend",
+            "estimate_points": 2
+          },
+          {
+            "title": "Interactive Task List UI",
+            "estimate_points": 3
+          },
+          {
+            "title": "Task Editing and Filtering Interface",
+            "estimate_points": 2
+          }
+        ]
+      },
+      {
+        "title": "In-App Notification System",
+        "stories": [
+          {
+            "title": "Notification Data Model and Backend Trigger",
+            "estimate_points": 3
+          },
+          {
+            "title": "Polling Endpoint for Active Notifications",
+            "estimate_points": 2
+          },
+          {
+            "title": "Front-End Notification Polling Component",
+            "estimate_points": 3
+          }
+        ]
+      },
+      {
+        "title": "Email Reminder Delivery",
+        "stories": [
+          {
+            "title": "SMTP Transport Service Configuration",
+            "estimate_points": 2
+          },
+          {
+            "title": "Scheduled Background Reminder Worker",
+            "estimate_points": 5
+          },
+          {
+            "title": "Email Delivery and Error Logging",
+            "estimate_points": 2
+          }
+        ]
+      }
+    ]
+  },
+  "sprint_plan": {
+    "sprints": [
+      {
+        "number": 1,
+        "items": [
+          "Setup Cloud Infrastructure and Database",
+          "Email-Password Authentication API",
+          "Web Application Shell and Auth Views",
+          "Task Creation and Listing Endpoints",
+          "Task Details and Management Backend",
+          "Interactive Task List UI",
+          "Task Editing and Filtering Interface",
+          "Notification Data Model and Backend Trigger",
+          "Polling Endpoint for Active Notifications",
+          "Front-End Notification Polling Component",
+          "SMTP Transport Service Configuration"
+        ],
+        "capacity_points": 28
+      },
+      {
+        "number": 2,
+        "items": [
+          "Scheduled Background Reminder Worker",
+          "Email Delivery and Error Logging"
+        ],
+        "capacity_points": 28
+      }
+    ]
+  },
+  "ops_result": {
+    "written": false,
+    "warnings": [],
+    "tickets": [
+      {
+        "key": "k0",
+        "title": "Setup Cloud Infrastructure and Database",
+        "epic": "System Foundation & Authentication",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.471,
+        "needs_human": false
+      },
+      {
+        "key": "k1",
+        "title": "Email-Password Authentication API",
+        "epic": "System Foundation & Authentication",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.329,
+        "needs_human": false
+      },
+      {
+        "key": "k2",
+        "title": "Web Application Shell and Auth Views",
+        "epic": "System Foundation & Authentication",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.465,
+        "needs_human": false
+      },
+      {
+        "key": "k3",
+        "title": "Task Creation and Listing Endpoints",
+        "epic": "Personal Task Management",
+        "points": 2,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.324,
+        "needs_human": false
+      },
+      {
+        "key": "k4",
+        "title": "Task Details and Management Backend",
+        "epic": "Personal Task Management",
+        "points": 2,
+        "sprint": 1,
+        "assignee": "Chloe",
+        "confidence": 0.191,
+        "needs_human": false
+      },
+      {
+        "key": "k5",
+        "title": "Interactive Task List UI",
+        "epic": "Personal Task Management",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.517,
+        "needs_human": false
+      },
+      {
+        "key": "k6",
+        "title": "Task Editing and Filtering Interface",
+        "epic": "Personal Task Management",
+        "points": 2,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.221,
+        "needs_human": false
+      },
+      {
+        "key": "k7",
+        "title": "Notification Data Model and Backend Trigger",
+        "epic": "In-App Notification System",
+        "points": 3,
+        "sprint": 1,
+        "assignee": null,
+        "confidence": 0.133,
+        "needs_human": true
+      },
+      {
+        "key": "k8",
+        "title": "Polling Endpoint for Active Notifications",
+        "epic": "In-App Notification System",
+        "points": 2,
+        "sprint": 1,
+        "assignee": "Alice",
+        "confidence": 0.278,
+        "needs_human": false
+      },
+      {
+        "key": "k9",
+        "title": "Front-End Notification Polling Component",
+        "epic": "In-App Notification System",
+        "points": 3,
+        "sprint": 1,
+        "assignee": "Bob",
+        "confidence": 0.327,
+        "needs_human": false
+      },
+      {
+        "key": "k10",
+        "title": "SMTP Transport Service Configuration",
+        "epic": "Email Reminder Delivery",
+        "points": 2,
+        "sprint": 1,
+        "assignee": "Chloe",
+        "confidence": 0.203,
+        "needs_human": false
+      },
+      {
+        "key": "k11",
+        "title": "Scheduled Background Reminder Worker",
+        "epic": "Email Reminder Delivery",
+        "points": 5,
+        "sprint": 2,
+        "assignee": "Chloe",
+        "confidence": 0.153,
+        "needs_human": false
+      },
+      {
+        "key": "k12",
+        "title": "Email Delivery and Error Logging",
+        "epic": "Email Reminder Delivery",
+        "points": 2,
+        "sprint": 2,
+        "assignee": "Alice",
+        "confidence": 0.185,
+        "needs_human": false
+      }
+    ]
+  }
+}

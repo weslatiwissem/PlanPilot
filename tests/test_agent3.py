@@ -146,3 +146,26 @@ def test_agent2_warnings_pass_through():
 
 def test_ops_checks_skipped_without_ops_result():
     assert assess(PLAN, SCOPE) == []
+
+
+FIXTURE_2 = Path(__file__).parent / "fixtures" / "sample_plan_response_2.json"
+
+
+def test_second_real_response_has_no_false_concentration_alarm():
+    """Sprint 1 is 28/28, Sprint 2 only 7/28. A 7-point sprint is not 'one-person risk'."""
+    state = json.loads(FIXTURE_2.read_text())
+    risks = [Risk.model_validate(r) for r in assess_risk(state)["risks"]]
+    items = {r.item for r in risks}
+    assert items == {
+        "Sprint 1",
+        "Notification Data Model and Backend Trigger",
+        "Scheduled Background Reminder Worker",
+        "Task Details and Management Backend",
+        "Email Delivery and Error Logging",
+    }
+    assert all("depends on one person" not in r.reason for r in risks)
+
+
+def test_small_sprint_concentration_not_flagged():
+    ops = _ops(_t("a", points=5, assignee="Ana"), _t("b", points=2, assignee="Ben"))
+    assert assess(PLAN, SCOPE, ops) == []

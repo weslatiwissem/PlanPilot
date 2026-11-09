@@ -15,6 +15,7 @@ LARGE_STORY_POINTS = 8       # stories at/above this should probably be split
 TIGHT_UTILISATION = 0.9      # planned/capacity at or above this = no slack
 LOW_CONFIDENCE = 0.2         # Agent 2 match confidence below this = weak assignment
 CONCENTRATION_SHARE = 0.5    # one person holding more than this share of a sprint's points
+MIN_POINTS_FOR_CONCENTRATION = 10  # ignore tiny sprints: someone always holds most of 7 points
 
 
 def _points_by_title(scope: Scope) -> dict:
@@ -91,7 +92,7 @@ def _ops_risks(ops: OpsResult) -> List[Risk]:
     for sprint, people in load.items():
         total = sum(people.values())
         person, pts = max(people.items(), key=lambda kv: kv[1])
-        if total and pts / total > CONCENTRATION_SHARE:
+        if total >= MIN_POINTS_FOR_CONCENTRATION and pts / total > CONCENTRATION_SHARE:
             risks.append(Risk(
                 item=f"Sprint {sprint}", score=0.4,
                 reason=f"{person} holds {pts / total:.0%} of the assigned points; "
