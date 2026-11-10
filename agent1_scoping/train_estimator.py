@@ -1,6 +1,7 @@
 """M3 experiment: can the story text + the team's own scale beat the median?
 
     python -m agent1_scoping.train_estimator
+    python -m agent1_scoping.train_estimator --mlflow --save     # log to MLflow + champion gate
 
 Idea: the team's median points sets the scale; LightGBM learns, from the story text
 (embedding), a multiplicative adjustment around it:
@@ -130,6 +131,8 @@ def main(argv: Optional[list] = None) -> None:
     p.add_argument("--data-dir", default=DEFAULT_DIR)
     p.add_argument("--cache", default=CACHE)
     p.add_argument("--save", action="store_true", help="save the trained model to models/estimator")
+    p.add_argument("--mlflow", action="store_true", help="log to MLflow and apply the champion gate")
+    p.add_argument("--seed", type=int, default=42)
     args = p.parse_args(argv)
 
     df = load_stories(args.data_dir, train_only=False)
@@ -144,6 +147,7 @@ def main(argv: Optional[list] = None) -> None:
     res = run(
         parts["train"], parts["val"], parts["test"],
         emb[:n_tr], emb[n_tr : n_tr + n_va], emb[n_tr + n_va :],
+        seed=args.seed,
     )
     print(f"\nbest iteration: {res['best_iteration']}")
     print(f"{'predictor':<24}{'MAE':>8}{'MdAE':>8}")
@@ -153,6 +157,13 @@ def main(argv: Optional[list] = None) -> None:
     print("\nMAE difference, mean [95% bootstrap interval] (negative = first is better):")
     for name, (mean, lo, hi) in res["bootstrap"].items():
         print(f"  {name:<34}{mean:>7.3f}  [{lo:.3f}, {hi:.3f}]")
+
+    if args.mlflow:
+        from agent1_scoping.tracking import log_run
+
+        out = log_run(res, {s: len(d) for s, d in parts.items()}, emb.shape[1], seed=args.seed)
+        verdict = "PROMOTED to champion" if out["promoted"] else "REJECTED, champion kept"
+        print(f"\nMLflow: run {out['run_id'][:8]}, model v{out['version']}: {verdict}")
 
     if args.save:
         from agent1_scoping.estimator import ARTIFACT_DIR, save_estimator
