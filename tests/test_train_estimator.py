@@ -1,6 +1,6 @@
 import hashlib  # isort: skip
 
-from agent1_scoping import rag  # isort: skip  (chromadb must load before pandas)
+from agent1_scoping import rag  # noqa: F401  # isort: skip (chromadb must load before pandas)
 from agent1_scoping.train_estimator import embed_cached, run  # isort: skip
 
 import numpy as np  # isort: skip
