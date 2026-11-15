@@ -1,0 +1,6 @@
+outs:
+- md5: c524ce71de712f32622d34153fddff0c.dir
+  size: 20957
+  nfiles: 2
+  hash: md5
+  path: risk_gru
