@@ -37,4 +37,8 @@ agent2_ops/audit_log.jsonl
 .chroma/
 .cache/
 reports/
-models/
+
+
+models/*
+!models/*.dvc
+!models/.gitignore
