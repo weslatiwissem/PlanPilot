@@ -33,3 +33,8 @@ Thumbs.db
 
 # Agent 2 audit log
 agent2_ops/audit_log.jsonl
+
+.chroma/
+.cache/
+reports/
+models/
