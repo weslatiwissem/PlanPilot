@@ -4,23 +4,35 @@
 
 train_risk.py pools the four snapshots (0/30/50/80 % of the sprint). Late snapshots are easy (the work
 already done reveals the outcome), so the pooled PR-AUC can hide how weak the model is at 0 %, which is the
-moment PlanPilot plans a sprint. This script reports every snapshot separately, with board-level bootstrap
-95% intervals (resampling whole boards, because sprints of one board are correlated), next to two rules:
+moment PlanPilot plans a sprint. This script reports every snapshot separately, next to two rules:
 
   overcommit  log(commit) - mean log(done) of the board's previous sprints   (planning-time rule)
   burn_rate   share of the sprint elapsed minus share of the commitment done (progress rule; 0 at snapshot 0)
 
 B1 / B2 are trained exactly like in train_risk.py (same folds, same early stopping); the predictions of
 the held-out boards are collected and scored per snapshot.
+
+Uncertainty: whole boards are resampled (sprints of one board are correlated). Every model is scored on the
+SAME resamples, so the "paired differences" are fair: they ask "is A better than B on the boards we have?",
+which is a sharper question than "do the two intervals overlap?". Percentile intervals from about 60 boards
+are approximate, and 4 snapshots x 4 comparisons = 16 intervals, so expect an occasional "clear" by chance.
 """
 import argparse
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from agent3_risk import sprint_data as sd
 from agent3_risk.train_risk import DATA_DIR, _val_boards, lgbm_predict
+
+SHORT = {"B1_snapshot": "B1", "B2_snapshot_history": "B2", "overcommit": "overcommit", "burn_rate": "burn_rate"}
+COMPARISONS = [
+    ("B2_snapshot_history", "B1_snapshot"),
+    ("B1_snapshot", "overcommit"),
+    ("B2_snapshot_history", "overcommit"),
+    ("B1_snapshot", "burn_rate"),
+]
 
 
 def out_of_fold(s, X1, X2, folds: int, seed: int):
@@ -51,17 +63,24 @@ def rule_scores(df, s, history: int):
     return {"overcommit": overcommit, "burn_rate": burn_rate}, n_prev
 
 
-def boot_ci(y, p, boards, n_boot: int, seed: int = 0):
-    """95% interval of PR-AUC, resampling whole boards."""
+def board_bootstrap(y: np.ndarray, scores: Dict[str, np.ndarray], boards: np.ndarray,
+                    n_boot: int, seed: int = 0) -> Dict[str, np.ndarray]:
+    """PR-AUC of every model on the same board-level resamples. Returns {model: array(n_resamples)}."""
     rng = np.random.default_rng(seed)
     ids = np.unique(boards)
     rows = {b: np.where(boards == b)[0] for b in ids}
-    vals = []
+    out = {name: [] for name in scores}
     for _ in range(n_boot):
         idx = np.concatenate([rows[b] for b in rng.choice(ids, len(ids), replace=True)])
-        if y[idx].min() != y[idx].max():
-            vals.append(average_precision_score(y[idx], p[idx]))
-    lo, hi = np.percentile(vals, [2.5, 97.5])
+        if y[idx].min() == y[idx].max():  # one class only: PR-AUC undefined, skip for every model
+            continue
+        for name, sc in scores.items():
+            out[name].append(average_precision_score(y[idx], sc[idx]))
+    return {name: np.array(v) for name, v in out.items()}
+
+
+def interval(values: np.ndarray) -> Tuple[float, float]:
+    lo, hi = np.percentile(values, [2.5, 97.5])
     return float(lo), float(hi)
 
 
@@ -71,7 +90,7 @@ def main(argv: Optional[list] = None) -> None:
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--history", type=int, default=3)
-    ap.add_argument("--boot", type=int, default=300)
+    ap.add_argument("--boot", type=int, default=1000)
     args = ap.parse_args(argv)
 
     df = sd.load_all(args.data_dir)
@@ -92,12 +111,25 @@ def main(argv: Optional[list] = None) -> None:
 
     for t in sd.SNAPSHOTS:
         m = snap == t
+        sub = {name: sc[m] for name, sc in scores.items()}
+        boot = board_bootstrap(y[m], sub, boards[m], args.boot, args.seed)
         print(f"\n=== snapshot {t}%: {m.sum()} sprints, under-delivery rate {y[m].mean():.1%} (PR-AUC of a coin flip)")
         print(f"{'model':<22}{'PR-AUC':>8}   95% interval (boards)   {'ROC-AUC':>8}")
-        for name, sc in scores.items():
-            lo, hi = boot_ci(y[m], sc[m], boards[m], args.boot)
-            print(f"{name:<22}{average_precision_score(y[m], sc[m]):>8.3f}   [{lo:.3f}, {hi:.3f}]"
-                  f"{'':<10}{roc_auc_score(y[m], sc[m]):>8.3f}")
+        full = {}
+        for name, sc in sub.items():
+            full[name] = average_precision_score(y[m], sc)
+            lo, hi = interval(boot[name])
+            print(f"{name:<22}{full[name]:>8.3f}   [{lo:.3f}, {hi:.3f}]{'':<10}{roc_auc_score(y[m], sc):>8.3f}")
+
+        print("paired differences in PR-AUC (first minus second, same board resamples)")
+        for a, b in COMPARISONS:
+            if t == 0 and "burn_rate" in (a, b):
+                continue  # nothing is done at 0 %, so burn_rate is constant there
+            d = boot[a] - boot[b]
+            lo, hi = interval(d)
+            verdict = "clear" if lo > 0 or hi < 0 else "not clear"
+            print(f"  {SHORT[a]} - {SHORT[b]:<11}{full[a] - full[b]:+.3f}  [{lo:+.3f}, {hi:+.3f}]  "
+                  f"first better in {np.mean(d > 0):>4.0%} of resamples   {verdict}")
 
 
 if __name__ == "__main__":
