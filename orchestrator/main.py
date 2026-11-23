@@ -19,7 +19,7 @@ from orchestrator.graph import build_graph
 from orchestrator.steps import router as steps_router
 
 load_dotenv()
-app = FastAPI(title="PlanPilot")
+app = FastAPI(title="PlanPilot", separate_input_output_schemas=False)  # one schema per model in /openapi.json
 app.add_middleware(  # lets the browser UI (Vite dev server by default) call this API
     CORSMiddleware,
     allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")],

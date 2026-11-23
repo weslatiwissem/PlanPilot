@@ -11,6 +11,38 @@ Runs **after Agent 1**. Takes `state["scope"]` and produces `state["sprint_plan"
 | - | `audit.py`   | one JSON line per write -> `agent2_ops/audit_log.jsonl` |
 | - | `team.json`  | **sample/fallback team only**. The real team is sent in the request (`team_members`) |
 | - | `demo.py`    | CLI: plan -> answer Agent 1 questions -> review -> assign leftovers -> approve |
+| - | `judge.py`   | **LLM-as-a-judge**: Gemini grades every assignment (1-5) and names who it would pick |
+| - | `evaluate_matcher.py` | M4 vs keywords / round-robin / random, same judge, logged to MLflow |
+
+## Which model? (M4)
+`sentence-transformers/all-MiniLM-L6-v2`, pretrained (= the proposal's "pre-fine-tune" baseline), plus the
+Hungarian algorithm (SciPy) with a load penalty and a capacity rule. Falls back to keyword overlap if the model
+cannot load. Every response says which one ran: `ops_result.model_version`.
+
+## Review flow: the team lead edits every AI suggestion (`/steps/*`)
+```
+1. POST /steps/plan-sprints  AI: stories -> sprints (no people)         lead: move stories, change points
+2. POST /steps/assign        M4: people INSIDE the lead's sprints       lead: change people, lock some
+   (call again)              M4: keeps locked tickets, redistributes the rest around them
+3. POST /steps/judge         optional: LLM judge grades the assignment
+4. POST /steps/approve       Trello cards + review stats + every change in the audit log
+```
+* `proposed_sprint` / `proposed_assignee` remember what the AI suggested; the lead's version is `sprint` / `assignee`.
+* `locked: true` = "the lead decided this one": M4 never changes it, and its points count as that person's load.
+* `ops_result.workload`: per sprint and teammate, `points`, `utilisation_pct` (% of their capacity, >100 = overloaded)
+  and `share_pct` (% of the sprint they carry). `ops_result.load_balance`: 1.0 = even.
+* M4 never puts anyone over capacity while a teammate who fits still has room; if nobody fits, the story goes
+  to the lead (`needs_human`).
+* Send `model_version` (from `/assign`) back to `/approve` so the audit log keeps which model proposed the plan.
+
+## Metrics (not the confidence score)
+| metric | where | meaning |
+|---|---|---|
+| judge mean score (1-5), agreement, good rate | `/steps/judge`, `evaluate_matcher.py` | independent LLM grades who got what |
+| human acceptance rate (sprints, assignees) | `ops_result.review` after `/approve`, audit log | share of the AI's proposal the lead kept |
+| coverage | `evaluate_matcher.py` | share of stories M4 dared to assign |
+| load balance | every response, `evaluate_matcher.py` | least / most utilised teammate |
+Baselines on the same sprints and judge: keywords, round-robin, random (`python -m agent2_ops.evaluate_matcher --mlflow`).
 
 ## Two modes (decided only by `state["approved"]`)
 * `POST /plan`    -> **proposal**. Nothing is written to Trello.
@@ -46,11 +78,11 @@ Runs **after Agent 1**. Takes `state["scope"]` and produces `state["sprint_plan"
 |---|---|
 | Jira connector | **Not done.** Trello only (on purpose, to keep it simple). `trello.py` is the template for a `jira.py`. |
 | M4 contrastive fine-tuning | **Not done.** Pre-fine-tune embeddings are used (this is the proposal's own baseline). Needs training pairs (task, correct assignee). Plug the result in with `SKILL_MODEL=<path>`. |
-| M4 baselines in MLflow (random / round-robin / pre-fine-tune) | **Not done.** Needs a labelled set of (task, assignee) pairs, which does not exist yet. |
+| M4 baselines in MLflow (random / round-robin / pre-fine-tune) | **Done** with an LLM judge instead of labels: `evaluate_matcher.py --mlflow`. A labelled set would still be better. |
 | Write batching | **Not done.** A plan is ~10-40 cards; backoff is enough at this scale. |
 | Real "current load" from Trello | **Not done.** Load comes from `current_load` in the team input. |
-| Review UI | **Not done** (Person B's week-7 item). `/docs` and `demo.py` stand in for it. |
-| Feedback capture into PostgreSQL | **Not done.** Overrides go to the audit log file only. |
+| Review UI | **API done** (`/steps/plan-sprints`, `/steps/assign`, `/steps/judge`); the Streamlit screens are next. `smoke_review.py` walks the flow. |
+| Feedback capture into PostgreSQL | **Not done.** Every override (proposed vs final sprint/assignee) goes to the audit log file. |
 | Grafana dashboard / Prometheus export | **Not done.** No `ops_result.metrics` field exists yet; wiring is week 8. |
 | Dockerfile for the API | **Not done.** CI (GitHub Actions) exists and runs the tests. |
 | Authentication on /approve | **Not done.** Anyone who can reach the API can approve. Fine for the course demo, not for production. |

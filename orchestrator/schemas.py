@@ -8,6 +8,8 @@ validate what it receives and emit `.model_dump()` of what it produces:
 
 CHANGE vs. previous version: Scope / Sprint / SprintPlan / Risk are UNCHANGED.
 Only Member, Ticket and OpsResult were ADDED (used by Agent 2, readable by Agent 3).
+Review flow (team lead edits every AI suggestion): Ticket got proposed_sprint / proposed_assignee / locked,
+OpsResult got workload and review. All new fields have defaults, so older clients keep working.
 """
 from typing import List, Optional
 
@@ -64,6 +66,29 @@ class Ticket(BaseModel):
     status: str = "proposed"          # proposed | created | already_exists
     card_id: Optional[str] = None
     url: Optional[str] = None
+    # --- review flow: what the AI suggested, so the lead's changes can be measured and learned from ---
+    proposed_sprint: Optional[int] = None     # sprint Agent 2 suggested in stage 1 (never overwritten)
+    proposed_assignee: Optional[str] = None   # assignee M4 suggested in stage 2 (never overwritten)
+    locked: bool = False                      # the lead fixed this assignee: M4 must keep it when re-assigning
+
+
+class Workload(BaseModel):
+    """How much one teammate takes in one sprint (shown as a bar per person in the UI)."""
+    sprint: int
+    member: str                       # "Unassigned" collects the stories nobody holds yet
+    points: int                       # story points this person holds in this sprint
+    capacity_points: int              # what this person can still take (capacity - current load)
+    utilisation_pct: int              # (points + current load) / capacity: above 100 = overloaded
+    share_pct: int                    # share of this sprint's points: who carries the sprint
+
+
+class ReviewStats(BaseModel):
+    """How much the team lead kept of the AI's suggestions (a human-agreement metric for Agent 2)."""
+    tickets: int = 0
+    sprints_changed: int = 0          # stories the lead moved to another sprint than proposed
+    assignees_changed: int = 0        # stories the lead gave to someone else than M4 proposed
+    sprint_acceptance_rate: Optional[float] = None    # 1.0 = every proposed sprint was kept
+    assignee_acceptance_rate: Optional[float] = None  # 1.0 = every proposed assignee was kept
 
 
 class OpsResult(BaseModel):
@@ -74,6 +99,9 @@ class OpsResult(BaseModel):
     model_version: str = ""           # which skill matcher produced the assignments
     tickets: List[Ticket] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
+    workload: List[Workload] = Field(default_factory=list)   # % per teammate and sprint
+    load_balance: Optional[float] = None   # least / most utilised teammate, averaged over sprints (1.0 = even)
+    review: Optional[ReviewStats] = None   # filled when the lead approves an edited plan
 
 
 class Risk(BaseModel):

@@ -22,3 +22,5 @@ class PlanState(TypedDict, total=False):
     forecasts: List[Dict[str, Any]]     # Agent 3 output -> list[schemas.Forecast]
     past_sprints: List[Dict[str, Any]]  # optional input -> list[schemas.PastSprint], oldest first
     sprint_days: int                    # optional input: length of a sprint in days
+    # --- added for the review flow -------------------------------------------------
+    model_version: str                  # optional input: matcher version that made the reviewed proposal

@@ -11,6 +11,14 @@ Two modes, controlled ONLY by state["approved"]:
   * approved is True       (POST /approve) -> the same plan is written to Trello.
 The approval gate is "hard": write_to_trello() itself refuses to run without approval.
 
+Review flow for the team lead (used by the /steps API, every AI suggestion can be edited):
+  1. propose_sprints()  AI packs stories into sprints, no assignees      -> lead edits sprints / points
+  2. assign_members()   M4 assigns INSIDE the lead's sprints; tickets the
+                        lead marked `locked` keep their person and count
+                        as load, M4 redistributes the rest around them   -> lead edits / locks, may re-run 2
+  3. plan_sprints(approved=True) writes exactly the reviewed tickets to Trello and logs every change
+     the lead made (proposed vs final) to the audit log: the feedback for retraining M4.
+
 Output in state:
   sprint_plan -> schemas.SprintPlan   (same contract as before)
   ops_result  -> schemas.OpsResult    (tickets, assignees, board id/url; Agent 3 reads this)
@@ -25,9 +33,13 @@ from agent2_ops.matcher import assign
 from agent2_ops.planner import (
     edited_tickets,
     flatten_stories,
+    load_balance,
     pack_sprints,
     plan_from_tickets,
+    review_stats,
+    sprint_tickets,
     ticket_key,
+    workload,
 )
 from agent2_ops.trello import TrelloClient
 from orchestrator.schemas import Member, OpsResult, Scope, Ticket
@@ -57,6 +69,17 @@ def _card_text(t: Ticket, description: str) -> str:
         f"{description}\n\nEpic: {t.epic}\nStory points: {t.points}\nAssignee: {who}"
         f"\n\n---\nplanpilot-key: {t.key}"  # <- idempotency marker, do not edit
     )
+
+
+def _log_review(tickets: List[Ticket], review, who: str, version: str) -> None:
+    """Audit every change the lead made to the AI's proposal (the feedback M4 can be retrained on)."""
+    for t in tickets:
+        if t.proposed_sprint is not None and t.sprint != t.proposed_sprint:
+            audit("override_sprint", who, t.key, version, title=t.title, proposed=t.proposed_sprint, final=t.sprint)
+        if t.proposed_assignee is not None and t.assignee != t.proposed_assignee:
+            audit("override_assignee", who, t.key, version, title=t.title,
+                  proposed=t.proposed_assignee, final=t.assignee)
+    audit("review_summary", who, "plan", version, **review.model_dump())
 
 
 def write_to_trello(
@@ -112,6 +135,80 @@ def write_to_trello(
     return result
 
 
+def assign_tickets(tickets: List[Ticket], stories: List[Dict], members: List[Member]) -> str:
+    """Fill assignee / proposed_assignee / confidence, sprint by sprint, around the lead's locked tickets.
+
+    Locked tickets keep their person; their points are added to that person's load for the sprint, so the
+    Hungarian step spreads the remaining stories over whoever still has room. Returns the matcher version.
+    """
+    by_title = {s["title"]: s for s in stories}
+    known = {m.name for m in members}
+    bad = sorted({t.assignee for t in tickets if t.locked and t.assignee not in known})
+    if bad:
+        raise ValueError(f"locked tickets name people who are not in the team: {', '.join(map(str, bad))}")
+    version = "none"
+    for n in sorted({t.sprint for t in tickets}):
+        in_sprint = [t for t in tickets if t.sprint == n]
+        fixed = [t for t in in_sprint if t.locked and t.assignee]
+        free = [t for t in in_sprint if not (t.locked and t.assignee)]
+        held = {m.name: sum(t.points for t in fixed if t.assignee == m.name) for m in members}
+        team = [m.model_copy(update={"current_load": m.current_load + held[m.name]}) for m in members]
+        for t in fixed:
+            t.confidence, t.needs_human = 1.0, False  # a human chose this person
+        if not free:
+            continue
+        stories_now = [{**by_title[t.title], "points": t.points} for t in free]  # the lead's points count
+        part, version = assign(stories_now, team)
+        for t in free:
+            who, conf = part[t.title]
+            t.assignee = t.proposed_assignee = who
+            t.confidence, t.needs_human = round(conf, 3), who is None
+    return version
+
+
+def _summary(tickets: List[Ticket], members: List[Member], **fields) -> OpsResult:
+    rows = workload(tickets, members)
+    return OpsResult(tickets=tickets, workload=rows, load_balance=load_balance(rows), **fields)
+
+
+def propose_sprints(state: PlanState) -> PlanState:
+    """Review stage 1: sprints only (no assignees). Never writes anything. Problems go to state["errors"]."""
+    try:
+        scope = Scope.model_validate(state.get("scope") or {})
+        stories = flatten_stories(scope)
+        if not stories:
+            raise ValueError("scope has no stories to plan")
+        members = _load_members(state)
+        capacity = sprint_capacity(members)
+        tickets = sprint_tickets(stories, capacity, state.get("board_name") or "PlanPilot Project")
+        return {
+            "sprint_plan": plan_from_tickets(tickets, capacity).model_dump(),
+            "ops_result": OpsResult(written=False, model_version="sprint-packer", tickets=tickets).model_dump(),
+        }
+    except Exception as e:
+        log.exception("agent2 propose_sprints failed")
+        return {"errors": [f"agent2: {e}"]}
+
+
+def assign_members(state: PlanState) -> PlanState:
+    """Review stage 2: M4 assigns people inside the lead's (edited) sprints. Never writes anything."""
+    try:
+        scope = Scope.model_validate(state.get("scope") or {})
+        stories = flatten_stories(scope)
+        members = _load_members(state)
+        project_id = state.get("board_name") or "PlanPilot Project"
+        tickets = edited_tickets(state.get("tickets") or [], stories, project_id)  # validates against the scope
+        version = assign_tickets(tickets, stories, members)
+        ops = _summary(tickets, members, written=False, model_version=version)
+        return {
+            "sprint_plan": plan_from_tickets(tickets, sprint_capacity(members)).model_dump(),
+            "ops_result": ops.model_dump(),
+        }
+    except Exception as e:
+        log.exception("agent2 assign_members failed")
+        return {"errors": [f"agent2: {e}"]}
+
+
 def plan_sprints(state: PlanState) -> PlanState:
     """LangGraph node. Never raises: problems are returned in state["errors"]."""
     try:
@@ -127,38 +224,25 @@ def plan_sprints(state: PlanState) -> PlanState:
         if state.get("tickets"):
             # a plan edited by the user (step API): keep sprints, points and assignees exactly as left
             tickets = edited_tickets(state["tickets"], stories, project_id)
-            plan, version = plan_from_tickets(tickets, capacity), "human-edited"
+            plan = plan_from_tickets(tickets, capacity)
+            # keep WHICH model made the proposal (the UI sends it back), and say that a human edited it
+            base = state.get("model_version")
+            version = f"{base} (human-edited)" if base else "human-edited"
         else:
-            # 1) sprints: greedy fill up to the capacity
+            # 1) sprints: greedy fill up to the capacity, 2) assignment (M4), balanced per sprint
             plan, sprint_of = pack_sprints(stories, capacity)
-
-            # 2) assignment (M4), balanced per sprint
-            by_title = {s["title"]: s for s in stories}
-            assignments, version = {}, "none"
-            for sprint in plan.sprints:
-                part, version = assign([by_title[t] for t in sprint.items], members)
-                assignments.update(part)
-
-            # 3) tickets (what will become Trello cards)
-            tickets = []
-            for s in stories:
-                who, conf = assignments[s["title"]]
-                tickets.append(
-                    Ticket(
-                        key=ticket_key(project_id, s["title"]),
-                        title=s["title"],
-                        epic=s["epic"],
-                        points=s["points"],
-                        sprint=sprint_of[s["title"]],
-                        assignee=who,
-                        confidence=round(conf, 3),
-                        needs_human=who is None,
-                    )
-                )
+            tickets = [
+                Ticket(key=ticket_key(project_id, s["title"]), title=s["title"], epic=s["epic"],
+                       points=s["points"], sprint=sprint_of[s["title"]], proposed_sprint=sprint_of[s["title"]])
+                for s in stories
+            ]
+            version = assign_tickets(tickets, stories, members)
         out = {"sprint_plan": plan.model_dump()}
 
         # 4) approval gate
         if state.get("approved") is True:
+            review = review_stats(tickets)
+            _log_review(tickets, review, state.get("approved_by", "unknown"), version)
             ops = write_to_trello(
                 tickets,
                 {s["title"]: s["description"] for s in stories},
@@ -168,8 +252,11 @@ def plan_sprints(state: PlanState) -> PlanState:
                 state.get("approved_by", "unknown"),
                 version,
             )
+            ops.review = review
         else:
             ops = OpsResult(written=False, model_version=version, tickets=tickets)
+        ops.workload = workload(tickets, members)
+        ops.load_balance = load_balance(ops.workload)
         out["ops_result"] = ops.model_dump()
         return out
     except Exception as e:  # surface the problem instead of crashing the whole graph

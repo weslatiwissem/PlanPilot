@@ -5,6 +5,17 @@
     POST /steps/risks     the (edited) tickets                            -> risks + forecasts (call it after every edit)
     POST /steps/approve   the (edited) tickets                            -> cards written to Trello, risks, forecasts
 
+Review flow (the team lead edits EVERY suggestion before anything is written):
+    POST /steps/plan-sprints  the (edited) scope    -> STAGE 1: sprints only, no assignees. Lead edits sprints/points.
+    POST /steps/assign        the lead's tickets    -> STAGE 2: M4 assigns people inside those sprints. Tickets
+                                                       with locked=true keep their person; M4 redistributes the
+                                                       rest around them. Lead edits / locks, and may call it again.
+    POST /steps/judge         the tickets           -> LLM judge grades every assignment (1-5) and names its pick.
+    POST /steps/approve       the final tickets     -> Trello. Send `model_version` from /assign so the audit log
+                                                       keeps which model proposed the plan; the response's
+                                                       ops_result.review says how much of the proposal was kept.
+/steps/sprints (both stages at once) keeps working for scripts and older clients.
+
 Optional on the last three: `past_sprints` (committed/delivered points of finished sprints, oldest first) and
 `sprint_days`. With past sprints the forecast uses the history model, without them the current-plan model.
 
@@ -25,10 +36,21 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from agent1_scoping.agent import ANSWERS_MARKER, scope_project
-from agent2_ops.agent import _load_members, plan_sprints, sprint_capacity
-from agent2_ops.planner import edited_tickets, flatten_stories, plan_from_tickets
+from agent2_ops.judge import JudgeReport, judge_tickets
+from agent2_ops.agent import _load_members, assign_members, plan_sprints, propose_sprints, sprint_capacity
+from agent2_ops.planner import edited_tickets, flatten_stories, load_balance, plan_from_tickets, workload
 from agent3_risk.agent import assess_risk
-from orchestrator.schemas import Forecast, Member, OpsResult, PastSprint, Risk, Scope, SprintPlan, Ticket
+from orchestrator.schemas import (
+    Forecast,
+    Member,
+    OpsResult,
+    PastSprint,
+    Risk,
+    Scope,
+    SprintPlan,
+    Ticket,
+    Workload,
+)
 
 router = APIRouter(prefix="/steps", tags=["steps"])
 DEFAULT_BOARD = "PlanPilot Project"  # same default as Agent 2
@@ -64,6 +86,7 @@ class TicketsStepRequest(ForecastInputs):
     tickets: List[Ticket]
     board_name: Optional[str] = None
     team_members: Optional[List[Member]] = None
+    model_version: Optional[str] = None  # ops_result.model_version from /assign: kept in the audit log
 
 
 class ApproveStepRequest(TicketsStepRequest):
@@ -88,6 +111,24 @@ class SprintsStepResponse(BaseModel):
 class RisksStepResponse(BaseModel):
     sprint_plan: SprintPlan
     risks: List[Risk] = Field(default_factory=list)
+    forecasts: List[Forecast] = Field(default_factory=list)
+    workload: List[Workload] = Field(default_factory=list)  # % per teammate and sprint, after the edits
+    load_balance: Optional[float] = None
+
+
+class SprintLoad(BaseModel):
+    """Stage 1: how full each sprint is (no people yet)."""
+    sprint: int
+    points: int
+    capacity_points: int
+    utilisation_pct: int
+
+
+class SprintStageResponse(BaseModel):
+    sprint_plan: SprintPlan
+    ops_result: OpsResult                       # tickets with a proposed sprint and no assignee
+    sprint_load: List[SprintLoad] = Field(default_factory=list)
+    risks: List[Risk] = Field(default_factory=list)  # plan checks only (overloaded sprint, big stories)
     forecasts: List[Forecast] = Field(default_factory=list)
 
 
@@ -142,7 +183,9 @@ def _state_from_tickets(scope_dict, raw_tickets, board_name, members_raw, extra=
         for story in epic.stories:
             story.estimate_points = points[story.title]
     plan = plan_from_tickets(tickets, sprint_capacity(members))
-    ops = OpsResult(written=False, model_version="human-edited", tickets=tickets)
+    rows = workload(tickets, members)
+    ops = OpsResult(written=False, model_version="human-edited", tickets=tickets, workload=rows,
+                    load_balance=load_balance(rows))
     state: Dict[str, Any] = {
         "scope": scope.model_dump(),
         "sprint_plan": plan.model_dump(),
@@ -189,7 +232,9 @@ def step_sprints(req: SprintsStepRequest):
 def step_risks(req: TicketsStepRequest):
     state = _state_from_tickets(req.scope.model_dump(), [t.model_dump() for t in req.tickets],
                                 req.board_name, _members(req.team_members), _extra(req))
-    return {"sprint_plan": state["sprint_plan"], **_assess(state)}
+    ops = state["ops_result"]
+    return {"sprint_plan": state["sprint_plan"], "workload": ops["workload"], "load_balance": ops["load_balance"],
+            **_assess(state)}
 
 
 @router.post("/approve", response_model=SprintsStepResponse)
@@ -203,6 +248,8 @@ def step_approve(req: ApproveStepRequest):
         "approved": True,
         "approved_by": req.approved_by,
     }
+    if req.model_version:
+        state["model_version"] = req.model_version
     if members:
         state["team_members"] = members
     out = plan_sprints(state)  # keeps the user's tickets; writes the Trello cards
@@ -211,3 +258,62 @@ def step_approve(req: ApproveStepRequest):
     state.update(out)
     state.update(_extra(req))
     return {"sprint_plan": state["sprint_plan"], "ops_result": state["ops_result"], **_assess(state)}
+
+
+# ------------------------------------------------------------------ review flow (stage 1 -> 2 -> judge)
+def _sprint_load(plan: SprintPlan, tickets: List[Dict[str, Any]]) -> List[SprintLoad]:
+    points = {t["title"]: t["points"] for t in tickets}
+    out = []
+    for s in plan.sprints:
+        used, cap = sum(points[x] for x in s.items), s.capacity_points or 1
+        out.append(SprintLoad(sprint=s.number, points=used, capacity_points=cap, utilisation_pct=round(100 * used / cap)))
+    return out
+
+
+@router.post("/plan-sprints", response_model=SprintStageResponse)
+def step_plan_sprints(req: SprintsStepRequest):
+    """Stage 1: Agent 2 proposes sprints only. The lead may change any ticket's sprint or points."""
+    state: Dict[str, Any] = {"scope": req.scope.model_dump()}
+    if req.board_name:
+        state["board_name"] = req.board_name
+    if _members(req.team_members):
+        state["team_members"] = _members(req.team_members)
+    out = propose_sprints(state)
+    if out.get("errors"):
+        raise _error(422, out["errors"], "value_error")
+    plan = SprintPlan.model_validate(out["sprint_plan"])
+    tickets = out["ops_result"]["tickets"]
+    risk_state = {"scope": state["scope"], "sprint_plan": out["sprint_plan"], **_extra(req)}  # no ops: plan checks only
+    return {"sprint_plan": out["sprint_plan"], "ops_result": out["ops_result"],
+            "sprint_load": _sprint_load(plan, tickets), **_assess(risk_state)}
+
+
+@router.post("/assign", response_model=SprintsStepResponse)
+def step_assign(req: TicketsStepRequest):
+    """Stage 2: M4 assigns people inside the lead's sprints, keeping every ticket the lead locked."""
+    state: Dict[str, Any] = {"scope": req.scope.model_dump(), "tickets": [t.model_dump() for t in req.tickets]}
+    if req.board_name:
+        state["board_name"] = req.board_name
+    if _members(req.team_members):
+        state["team_members"] = _members(req.team_members)
+    out = assign_members(state)
+    if out.get("errors"):
+        raise _error(422, out["errors"], "value_error")
+    state.update(out)
+    state.update(_extra(req))
+    return {"sprint_plan": state["sprint_plan"], "ops_result": state["ops_result"], **_assess(state)}
+
+
+@router.post("/judge", response_model=JudgeReport)
+def step_judge(req: TicketsStepRequest):
+    """LLM-as-a-judge on the current tickets (needs GEMINI_API_KEY). Unassigned tickets are skipped."""
+    state = _state_from_tickets(req.scope.model_dump(), [t.model_dump() for t in req.tickets],
+                                req.board_name, _members(req.team_members))
+    tickets = [Ticket.model_validate(t) for t in state["ops_result"]["tickets"]]
+    stories = flatten_stories(Scope.model_validate(state["scope"]))
+    members = _load_members(state)
+    try:
+        report = judge_tickets(tickets, stories, members)
+    except Exception as e:  # key missing, quota, network
+        raise _error(502, f"judge failed: {e}", "agent_error")
+    return report

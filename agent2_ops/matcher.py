@@ -7,6 +7,8 @@ Step 1  similarity(story text, member skills)   -> matrix (stories x members)
         backend "keywords":   plain word overlap. Used in tests / if the model can't load.
 Step 2  Hungarian algorithm (scipy) picks the best story->member pairing while
         penalising members who already carry a lot of points (load balancing).
+        Going over a member's capacity costs OVER_CAPACITY_PENALTY, more than any similarity (max 1.0) can win
+        back, so M4 only overloads someone when the whole team is full.
 Step 3  If the best similarity is below MATCH_MIN_CONFIDENCE the story is NOT assigned:
         it is flagged `needs_human` (proposal: low-confidence items go to a human).
 """
@@ -23,6 +25,7 @@ from orchestrator.schemas import Member
 log = logging.getLogger(__name__)
 
 LOAD_WEIGHT = 0.5  # how strongly workload counts compared to skill fit
+OVER_CAPACITY_PENALTY = 1.0  # added when a story would push a member past capacity_points
 _model = None      # cached sentence-transformers model
 
 
@@ -77,18 +80,46 @@ def assign(stories: List[Dict], members: List[Member]):
     # costs more than the (k-1)-th, which spreads work across the team.
     n, k = len(stories), len(members)
     avg_points = float(np.mean([s["points"] for s in stories]))
+    points = np.array([s["points"] for s in stories], dtype=float)
     cost = np.zeros((n, k * n))
     for j, m in enumerate(members):
         for slot in range(n):
             load = m.current_load + slot * avg_points
             penalty = LOAD_WEIGHT * load / m.capacity_points
-            cost[:, j * n + slot] = -sims[:, j] + penalty
+            over = (load + points) > m.capacity_points  # this story would not fit in what is left
+            cost[:, j * n + slot] = -sims[:, j] + penalty + OVER_CAPACITY_PENALTY * over
     rows, cols = linear_sum_assignment(cost)
 
     min_conf = float(os.getenv("MATCH_MIN_CONFIDENCE", "0.15"))
+    owner = {int(i): int(c // n) for i, c in zip(rows, cols)}  # story index -> member index
+    owner = _fit_capacity(owner, sims, stories, members, min_conf)
     result = {}
-    for i, c in zip(rows, cols):
-        j = c // n
+    for i, s in enumerate(stories):
+        j = owner[i]
+        if j is None:
+            result[s["title"]] = (None, float(sims[i].max()))
+            continue
         conf = float(sims[i, j])
-        result[stories[i]["title"]] = (members[j].name if conf >= min_conf else None, conf)
+        result[s["title"]] = (members[j].name if conf >= min_conf else None, conf)
     return result, version
+
+
+def _fit_capacity(owner, sims, stories, members, min_conf):
+    """Final check with the REAL story points (the cost matrix only estimates load from the average size).
+
+    While a member is over capacity, their weakest-match story moves to the best-matching teammate who still
+    has room (and a similarity >= min_conf); if nobody fits it goes to a human (owner None).
+    """
+    def load(j):
+        return members[j].current_load + sum(stories[i]["points"] for i, o in owner.items() if o == j)
+
+    for j, m in enumerate(members):
+        while load(j) > m.capacity_points:
+            mine = sorted((i for i, o in owner.items() if o == j), key=lambda i: sims[i, j])
+            if len(mine) <= 1 and members[j].current_load == 0:
+                break  # one story bigger than the person: keep it, Agent 3 flags the overload
+            i = mine[0]
+            room = [k for k in range(len(members)) if k != j and sims[i, k] >= min_conf
+                    and load(k) + stories[i]["points"] <= members[k].capacity_points]
+            owner[i] = max(room, key=lambda k: sims[i, k]) if room else None
+    return owner

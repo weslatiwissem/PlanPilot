@@ -36,6 +36,7 @@ def generate_structured(
     system: str = "",
     temperature: Optional[float] = None,
     retries: int = 3,
+    model: Optional[str] = None,
 ) -> T:
     """Call Gemini and return a validated instance of `schema`.
 
@@ -50,7 +51,7 @@ def generate_structured(
         response_schema=schema,
         temperature=temperature,
     )
-    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    model = model or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")  # `model` lets a caller (e.g. the judge) pick another
 
     last_error: Optional[Exception] = None
     for attempt in range(retries + 1):
