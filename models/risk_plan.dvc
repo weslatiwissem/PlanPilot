@@ -1,0 +1,6 @@
+outs:
+- md5: 8f912ae98054ff74319a782d2bc418fb.dir
+  size: 630277
+  nfiles: 3
+  hash: md5
+  path: risk_plan
