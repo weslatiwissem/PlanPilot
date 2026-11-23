@@ -42,3 +42,8 @@ reports/
 models/*
 !models/*.dvc
 !models/.gitignore
+
+# Users database (SQLite) and the React UI's installed packages / build
+planpilot.db
+frontend/node_modules/
+frontend/dist/

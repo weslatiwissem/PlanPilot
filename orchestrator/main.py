@@ -4,21 +4,27 @@ POST /plan     scoping -> sprint PROPOSAL -> risk   (nothing is written to Trell
 POST /approve  human approval event: writes the (possibly edited) scope to Trello,
                then runs Agent 3.  <- the only way Agent 2 is allowed to write.
 /steps/*       step-by-step API for the UI: scope -> sprints -> risks -> approve (orchestrator/steps.py)
+/auth, /users  login + team accounts (orchestrator/auth.py, SQLite file planpilot.db)
+Every planning endpoint needs a lead or admin login; set PLANPILOT_AUTH=0 to switch the checks off.
 """
 import os
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agent2_ops.agent import plan_sprints
 from agent3_risk.agent import assess_risk
+from orchestrator import db
+from orchestrator.auth import require_planner
+from orchestrator.auth import router as auth_router
 from orchestrator.graph import build_graph
 from orchestrator.steps import router as steps_router
 
 load_dotenv()
+db.init()  # creates planpilot.db and, the first time, the admin account from .env
 app = FastAPI(title="PlanPilot", separate_input_output_schemas=False)  # one schema per model in /openapi.json
 app.add_middleware(  # lets the browser UI (Vite dev server by default) call this API
     CORSMiddleware,
@@ -26,7 +32,8 @@ app.add_middleware(  # lets the browser UI (Vite dev server by default) call thi
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(steps_router)  # step-by-step endpoints for the wizard UI (see orchestrator/steps.py)
+app.include_router(auth_router)  # login + accounts
+app.include_router(steps_router, dependencies=[Depends(require_planner)])  # planning: lead or admin only
 graph = build_graph()
 
 
@@ -49,7 +56,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/plan")
+@app.post("/plan", dependencies=[Depends(require_planner)])
 def create_plan(req: PlanRequest):
     state = {"project_description": req.project_description}
     if req.team_id:
@@ -61,7 +68,7 @@ def create_plan(req: PlanRequest):
     return graph.invoke(state)  # `approved` is never set here -> Agent 2 only proposes
 
 
-@app.post("/approve")
+@app.post("/approve", dependencies=[Depends(require_planner)])
 def approve_plan(req: ApproveRequest):
     state = {
         "scope": req.scope,

@@ -81,9 +81,9 @@ Baselines on the same sprints and judge: keywords, round-robin, random (`python 
 | M4 baselines in MLflow (random / round-robin / pre-fine-tune) | **Done** with an LLM judge instead of labels: `evaluate_matcher.py --mlflow`. A labelled set would still be better. |
 | Write batching | **Not done.** A plan is ~10-40 cards; backoff is enough at this scale. |
 | Real "current load" from Trello | **Not done.** Load comes from `current_load` in the team input. |
-| Review UI | **API done** (`/steps/plan-sprints`, `/steps/assign`, `/steps/judge`); the Streamlit screens are next. `smoke_review.py` walks the flow. |
+| Review UI | **Done**: React app in `frontend/` (login, team, 5 planning steps) on `/steps/plan-sprints`, `/steps/assign`, `/steps/judge`, `/steps/approve`. |
 | Feedback capture into PostgreSQL | **Not done.** Every override (proposed vs final sprint/assignee) goes to the audit log file. |
 | Grafana dashboard / Prometheus export | **Not done.** No `ops_result.metrics` field exists yet; wiring is week 8. |
 | Dockerfile for the API | **Not done.** CI (GitHub Actions) exists and runs the tests. |
-| Authentication on /approve | **Not done.** Anyone who can reach the API can approve. Fine for the course demo, not for production. |
+| Authentication on /approve | **Done**: login (orchestrator/auth.py); planning and Trello writes need a lead or admin account. |
 | Tests against real Trello / real embedding model | Trello is tested with a fake; the real calls were verified manually. |

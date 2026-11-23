@@ -49,6 +49,7 @@ py-trello==0.19.0
 scipy==1.14.1
 requests>=2.32,<3          # Agent 2: Trello REST calls (explicit instead of transitive)
 
+
 # --- Dev / quality ---
 pytest==8.3.3
 black==24.8.0

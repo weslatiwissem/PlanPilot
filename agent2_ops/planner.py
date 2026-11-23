@@ -16,10 +16,22 @@ DEFAULT_POINTS = 3  # used if a story has no estimate
 
 
 def flatten_stories(scope: Scope) -> List[Dict]:
-    """Scope -> flat list of dicts: title, description, epic, points."""
-    stories = []
+    """Scope -> flat list of dicts: title, description, epic, points.
+
+    The lead can edit the backlog (add / rename / remove epics and stories), and story titles are the keys of
+    everything after this step, so they must be non-empty and unique. Raises ValueError with a message for the user.
+    """
+    stories, seen = [], set()
     for epic in scope.epics:
+        if not epic.title.strip():
+            raise ValueError("every epic needs a title")
         for s in epic.stories:
+            title = s.title.strip()
+            if not title:
+                raise ValueError(f"a story in '{epic.title}' has no title")
+            if title.lower() in seen:
+                raise ValueError(f"two stories are called '{title}': story titles must be unique")
+            seen.add(title.lower())
             stories.append(
                 {
                     "title": s.title,
