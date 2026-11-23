@@ -16,3 +16,9 @@ class PlanState(TypedDict, total=False):
     board_name: str                     # optional input: Trello board to create/reuse
     approved_by: str                    # who clicked approve (goes into the audit log)
     ops_result: Dict[str, Any]          # Agent 2 output -> schemas.OpsResult
+    # --- added for the step API ----------------------------------------------------
+    tickets: List[Dict[str, Any]]       # optional input: user-edited tickets -> list[schemas.Ticket]
+    # --- added for the sprint forecast ---------------------------------------------
+    forecasts: List[Dict[str, Any]]     # Agent 3 output -> list[schemas.Forecast]
+    past_sprints: List[Dict[str, Any]]  # optional input -> list[schemas.PastSprint], oldest first
+    sprint_days: int                    # optional input: length of a sprint in days

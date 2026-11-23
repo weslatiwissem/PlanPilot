@@ -3,19 +3,30 @@
 POST /plan     scoping -> sprint PROPOSAL -> risk   (nothing is written to Trello)
 POST /approve  human approval event: writes the (possibly edited) scope to Trello,
                then runs Agent 3.  <- the only way Agent 2 is allowed to write.
+/steps/*       step-by-step API for the UI: scope -> sprints -> risks -> approve (orchestrator/steps.py)
 """
+import os
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agent2_ops.agent import plan_sprints
 from agent3_risk.agent import assess_risk
 from orchestrator.graph import build_graph
+from orchestrator.steps import router as steps_router
 
 load_dotenv()
 app = FastAPI(title="PlanPilot")
+app.add_middleware(  # lets the browser UI (Vite dev server by default) call this API
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(steps_router)  # step-by-step endpoints for the wizard UI (see orchestrator/steps.py)
 graph = build_graph()
 
 

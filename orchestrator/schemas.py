@@ -81,3 +81,18 @@ class Risk(BaseModel):
     item: str
     score: float = Field(ge=0.0, le=1.0)
     reason: str = ""
+
+
+class PastSprint(BaseModel):
+    """A sprint the team has already finished (input of the sprint forecast)."""
+    committed: float = Field(ge=0)    # story points the team committed to
+    delivered: float = Field(ge=0)    # story points it actually finished
+
+
+class Forecast(BaseModel):
+    """Agent 3 output: chance that a planned sprint delivers less than it commits (trained model)."""
+    sprint: int = Field(ge=1)
+    probability: float = Field(ge=0.0, le=1.0)
+    reference_rate: Optional[float] = None   # share of sprints that did so in the training data
+    model: str                               # "B1_plus" (no history) | "B2_plus" (past sprints given)
+    history_used: int = 0                    # how many past sprints the model saw

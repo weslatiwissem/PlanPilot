@@ -22,7 +22,13 @@ from typing import Dict, List, Optional
 
 from agent2_ops.audit import audit
 from agent2_ops.matcher import assign
-from agent2_ops.planner import flatten_stories, pack_sprints, ticket_key
+from agent2_ops.planner import (
+    edited_tickets,
+    flatten_stories,
+    pack_sprints,
+    plan_from_tickets,
+    ticket_key,
+)
 from agent2_ops.trello import TrelloClient
 from orchestrator.schemas import Member, OpsResult, Scope, Ticket
 from orchestrator.state import PlanState
@@ -38,6 +44,11 @@ def _load_members(state: PlanState) -> List[Member]:
         with open(TEAM_FILE, encoding="utf-8") as f:
             raw = json.load(f)
     return [Member.model_validate(m) for m in raw]
+
+
+def sprint_capacity(members: List[Member]) -> int:
+    """Points per sprint: the SPRINT_CAPACITY override, else the team's combined capacity."""
+    return max(int(os.getenv("SPRINT_CAPACITY", sum(m.capacity_points for m in members))), 1)
 
 
 def _card_text(t: Ticket, description: str) -> str:
@@ -110,35 +121,40 @@ def plan_sprints(state: PlanState) -> PlanState:
             raise ValueError("scope has no stories to plan")
         members = _load_members(state)
 
-        # 1) sprints: capacity = env override, else the team's combined capacity
-        capacity = int(os.getenv("SPRINT_CAPACITY", sum(m.capacity_points for m in members)))
-        capacity = max(capacity, 1)
-        plan, sprint_of = pack_sprints(stories, capacity)
-
-        # 2) assignment (M4), balanced per sprint
-        by_title = {s["title"]: s for s in stories}
-        assignments, version = {}, "none"
-        for sprint in plan.sprints:
-            part, version = assign([by_title[t] for t in sprint.items], members)
-            assignments.update(part)
-
-        # 3) tickets (what will become Trello cards)
         project_id = state.get("board_name") or "PlanPilot Project"
-        tickets = []
-        for s in stories:
-            who, conf = assignments[s["title"]]
-            tickets.append(
-                Ticket(
-                    key=ticket_key(project_id, s["title"]),
-                    title=s["title"],
-                    epic=s["epic"],
-                    points=s["points"],
-                    sprint=sprint_of[s["title"]],
-                    assignee=who,
-                    confidence=round(conf, 3),
-                    needs_human=who is None,
+        capacity = sprint_capacity(members)
+
+        if state.get("tickets"):
+            # a plan edited by the user (step API): keep sprints, points and assignees exactly as left
+            tickets = edited_tickets(state["tickets"], stories, project_id)
+            plan, version = plan_from_tickets(tickets, capacity), "human-edited"
+        else:
+            # 1) sprints: greedy fill up to the capacity
+            plan, sprint_of = pack_sprints(stories, capacity)
+
+            # 2) assignment (M4), balanced per sprint
+            by_title = {s["title"]: s for s in stories}
+            assignments, version = {}, "none"
+            for sprint in plan.sprints:
+                part, version = assign([by_title[t] for t in sprint.items], members)
+                assignments.update(part)
+
+            # 3) tickets (what will become Trello cards)
+            tickets = []
+            for s in stories:
+                who, conf = assignments[s["title"]]
+                tickets.append(
+                    Ticket(
+                        key=ticket_key(project_id, s["title"]),
+                        title=s["title"],
+                        epic=s["epic"],
+                        points=s["points"],
+                        sprint=sprint_of[s["title"]],
+                        assignee=who,
+                        confidence=round(conf, 3),
+                        needs_human=who is None,
+                    )
                 )
-            )
         out = {"sprint_plan": plan.model_dump()}
 
         # 4) approval gate

@@ -1,0 +1,6 @@
+outs:
+- md5: 25f8ff5e6d66b4c75f251e9ba3c16baf.dir
+  size: 1734938
+  nfiles: 3
+  hash: md5
+  path: risk_lgbm
